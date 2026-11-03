@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rhythm Hero: Imbuhan Tatabahasa</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- MediaPipe Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #090d16;
+            color: #f8fafc;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.7), 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.7), 0 0 20px rgba(236, 72, 153, 0.4);
+        }
+        .neon-box {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.3), inset 0 0 15px rgba(168, 85, 247, 0.2);
+        }
+        .lane-active {
+            background: linear-gradient(180deg, rgba(59,130,246,0.1) 0%, rgba(147,51,234,0.4) 100%);
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.6);
+        }
+        /* Canvas mirror for camera */
+        .mirror {
+            transform: scaleX(-1);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100">
+
+    <!-- TOP NAVIGATION & HEADER -->
+    <header class="w-full bg-slate-900/80 backdrop-blur border-b border-slate-800 px-4 py-3 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+                    <i class="fa-solid fa-music text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-orbitron font-black text-lg md:text-xl bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-500">
+                        RHYTHM HERO <span class="text-xs px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 border border-purple-500/30 font-sans font-semibold">IMBUHAN BM</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Pembelajaran Ritma Imbuhan Awalan & Akhiran MediaPipe Hands</p>
+                </div>
+            </div>
+
+            <!-- Game Stats Bar (Visible during play) -->
+            <div id="top-stats-bar" class="hidden flex items-center space-x-6">
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 uppercase font-bold tracking-wider block">Skor</span>
+                    <span id="score-display" class="font-orbitron font-bold text-xl text-cyan-400">000000</span>
+                </div>
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 uppercase font-bold tracking-wider block">Kombo</span>
+                    <span id="combo-display" class="font-orbitron font-bold text-xl text-yellow-400">0x</span>
+                </div>
+                <div class="text-center hidden sm:block">
+                    <span class="text-xs text-slate-400 uppercase font-bold tracking-wider block">Nyawa</span>
+                    <div class="w-24 bg-slate-800 h-3 rounded-full overflow-hidden mt-1 border border-slate-700">
+                        <div id="health-bar" class="bg-gradient-to-r from-emerald-400 to-cyan-500 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings & Controls -->
+            <div class="flex items-center space-x-2">
+                <button id="btn-sound-toggle" class="p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700" title="Audio">
+                    <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+                </button>
+                <button id="btn-cam-toggle" class="p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700" title="Kamera Status">
+                    <i id="cam-icon" class="fa-solid fa-video text-emerald-400"></i>
+                </button>
+                <button id="btn-help" class="p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700" title="Panduan">
+                    <i class="fa-solid fa-circle-question"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN GAME CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 flex flex-col items-center justify-center relative">
+
+        <!-- SCREEN 1: START / MENU SCREEN -->
+        <div id="screen-start" class="w-full max-w-3xl bg-slate-900/90 border border-slate-800 rounded-3xl p-6 md:p-8 backdrop-blur shadow-2xl my-auto text-center relative overflow-hidden">
+            <div class="absolute -top-24 -left-24 w-60 h-60 bg-purple-600/20 rounded-full filter blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-60 h-60 bg-cyan-600/20 rounded-full filter blur-3xl pointer-events-none"></div>
+
+            <div class="inline-block px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-400 text-xs font-semibold mb-4 tracking-wide uppercase">
+                <i class="fa-solid fa-hand-sparkles mr-2"></i>Teknologi Kawalan Isyarat Jari AI
+            </div>
+
+            <h2 class="text-3xl md:text-5xl font-black font-orbitron mb-3 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-300 to-pink-500">
+                RHYTHM HERO IMBUHAN
+            </h2>
+            <p class="text-slate-300 text-sm md:text-base max-w-xl mx-auto mb-6 leading-relaxed">
+                Kuasai <strong class="text-cyan-400">Imbuhan Awalan & Akhiran Bahasa Melayu</strong> mengikut rentak irama! 
+                Gunakan imbasan isyarat jari webcam (atau kekunci papan kekunci) untuk mengetuk imbuhan yang tepat.
+            </p>
+
+            <!-- Mode & Difficulty Selection -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 text-left">
+                <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-2xl">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                        <i class="fa-solid fa-sliders text-purple-400 mr-2"></i>Kelajuan Rentak (BPM)
+                    </label>
+                    <select id="select-speed" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-purple-500">
+                        <option value="1">Perlahan / Santai (BPM 90)</option>
+                        <option value="1.2" selected>Sederhana / Sesuai (BPM 110)</option>
+                        <option value="1.5">Pantas / Hero Ritma (BPM 130)</option>
+                    </select>
+                </div>
+
+                <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-2xl">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                        <i class="fa-solid fa-book-open text-cyan-400 mr-2"></i>Fokus Topik Imbuhan
+                    </label>
+                    <select id="select-topic" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500">
+                        <option value="ALL" selected>Campuran (Awalan & Akhiran)</option>
+                        <option value="AWALAN">Imbuhan Awalan Sahaja (me-, ber-, di-, pe-)</option>
+                        <option value="AKHIRAN">Imbuhan Akhiran Sahaja (-kan, -an, -i)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Finger Mapping Guide -->
+            <div class="mb-8 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pemetaan Isyarat Jari (4 Lorong Ritma)</h4>
+                <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                    <div class="p-2 rounded-xl bg-cyan-950/40 border border-cyan-800/50">
+                        <span class="block text-cyan-400 font-bold text-sm">Lorong 1</span>
+                        <span class="text-slate-300">Jari Telunjuk</span>
+                        <span class="block text-[10px] text-slate-500 mt-0.5">Kekunci [ D ]</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-purple-950/40 border border-purple-800/50">
+                        <span class="block text-purple-400 font-bold text-sm">Lorong 2</span>
+                        <span class="text-slate-300">Jari Tengah</span>
+                        <span class="block text-[10px] text-slate-500 mt-0.5">Kekunci [ F ]</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-pink-950/40 border border-pink-800/50">
+                        <span class="block text-pink-400 font-bold text-sm">Lorong 3</span>
+                        <span class="text-slate-300">Jari Manis</span>
+                        <span class="block text-[10px] text-slate-500 mt-0.5">Kekunci [ J ]</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-amber-950/40 border border-amber-800/50">
+                        <span class="block text-amber-400 font-bold text-sm">Lorong 4</span>
+                        <span class="text-slate-300">Jari Kelingking</span>
+                        <span class="block text-[10px] text-slate-500 mt-0.5">Kekunci [ K ]</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button id="btn-start-game" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 text-white font-orbitron font-bold text-lg hover:brightness-110 transform hover:scale-105 transition shadow-lg shadow-purple-600/40 flex items-center justify-center space-x-3">
+                    <i class="fa-solid fa-play"></i>
+                    <span>MULA PERMAINAN</span>
+                </button>
+            </div>
+            
+            <p id="cam-status-text" class="text-xs text-slate-400 mt-4 flex items-center justify-center">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping mr-2"></span>
+                Memulakan modul MediaPipe Hands...
+            </p>
+        </div>
+
+        <!-- SCREEN 2: GAMEPLAY ARENA -->
+        <div id="screen-game" class="hidden w-full flex flex-col items-center justify-center relative">
+            
+            <!-- Question & Word Assembly Banner -->
+            <div class="w-full max-w-4xl bg-slate-900/90 border border-slate-800 rounded-2xl p-4 mb-3 backdrop-blur shadow-lg flex flex-col md:flex-row items-center justify-between gap-3">
+                <div class="flex items-center space-x-3">
+                    <div class="px-3 py-1 rounded-lg bg-purple-900/50 border border-purple-500/40 text-purple-300 text-xs font-bold uppercase tracking-wide">
+                        SOALAN <span id="question-index">1</span>/10
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-400 font-semibold block">Jenis Imbuhan: <span id="target-type" class="text-cyan-400 font-bold">Awalan Kata Kerja</span></span>
+                        <div class="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                            <span>Kata Dasar:</span>
+                            <span id="base-word" class="font-orbitron text-yellow-400 bg-slate-800 px-3 py-0.5 rounded-lg border border-yellow-500/30">MAKAN</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Word Result Dynamic Visualizer -->
+                <div class="bg-slate-950/80 px-4 py-2 rounded-xl border border-slate-800 flex items-center space-x-2">
+                    <span class="text-xs text-slate-400 font-semibold">Bentuk Sasaran:</span>
+                    <span id="target-assembled-word" class="font-orbitron font-extrabold text-cyan-300 text-lg tracking-wider">
+                        [ ? ] + MAKAN = MEMAKAN
+                    </span>
+                </div>
+            </div>
+
+            <!-- Rhythm Canvas Container -->
+            <div class="relative w-full max-w-4xl h-[460px] sm:h-[500px] bg-slate-950 rounded-3xl border-2 border-slate-800 overflow-hidden shadow-2xl flex flex-col justify-between">
+                
+                <!-- Falling Notes Canvas -->
+                <canvas id="rhythm-canvas" class="w-full h-full absolute inset-0 z-10"></canvas>
+
+                <!-- Hits Visual Feedback Popup Overlay -->
+                <div id="feedback-popup" class="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none opacity-0 transition-all duration-200 text-center">
+                    <div id="feedback-text" class="font-orbitron font-black text-3xl sm:text-5xl neon-text-cyan">PERFECT!</div>
+                    <div id="feedback-sub" class="text-xs sm:text-sm font-bold text-emerald-400 mt-1">Imbuhan Tepat +500</div>
+                </div>
+
+                <!-- Hand Tracking Pip Camera Box Overlay -->
+                <div class="absolute top-4 right-4 z-30 w-36 h-28 sm:w-48 sm:h-36 rounded-2xl border-2 border-cyan-500/50 bg-slate-900/90 overflow-hidden shadow-xl backdrop-blur flex flex-col">
+                    <div class="bg-slate-900/90 px-2 py-1 border-b border-slate-800 flex justify-between items-center text-[10px] text-slate-300 font-bold">
+                        <span><i class="fa-solid fa-camera mr-1 text-cyan-400"></i>KAMERA AI</span>
+                        <span id="hand-detect-status" class="text-emerald-400">MENGESAN</span>
+                    </div>
+                    <div class="relative flex-1 bg-black">
+                        <video id="webcam-video" class="w-full h-full object-cover mirror hidden" playsinline></video>
+                        <canvas id="hand-canvas" class="w-full h-full object-cover mirror absolute inset-0"></canvas>
+                    </div>
+                </div>
+
+                <!-- On-Screen Lane Tap Buttons (Mobile/Mouse Touch Fallback) -->
+                <div class="absolute bottom-3 left-0 right-0 z-30 px-4 grid grid-cols-4 gap-2 sm:gap-4 pointer-events-auto">
+                    <button data-lane="0" class="btn-lane-tap py-3 sm:py-4 rounded-2xl bg-cyan-950/80 border-2 border-cyan-500/60 text-cyan-300 font-orbitron font-bold text-sm sm:text-base hover:bg-cyan-900/80 active:scale-95 transition shadow-lg flex flex-col items-center justify-center">
+                        <span class="text-xs font-sans text-cyan-400 opacity-80">Telunjuk [D]</span>
+                        <span class="text-lg">LORONG 1</span>
+                    </button>
+                    <button data-lane="1" class="btn-lane-tap py-3 sm:py-4 rounded-2xl bg-purple-950/80 border-2 border-purple-500/60 text-purple-300 font-orbitron font-bold text-sm sm:text-base hover:bg-purple-900/80 active:scale-95 transition shadow-lg flex flex-col items-center justify-center">
+                        <span class="text-xs font-sans text-purple-400 opacity-80">Tengah [F]</span>
+                        <span class="text-lg">LORONG 2</span>
+                    </button>
+                    <button data-lane="2" class="btn-lane-tap py-3 sm:py-4 rounded-2xl bg-pink-950/80 border-2 border-pink-500/60 text-pink-300 font-orbitron font-bold text-sm sm:text-base hover:bg-pink-900/80 active:scale-95 transition shadow-lg flex flex-col items-center justify-center">
+                        <span class="text-xs font-sans text-pink-400 opacity-80">Manis [J]</span>
+                        <span class="text-lg">LORONG 3</span>
+                    </button>
+                    <button data-lane="3" class="btn-lane-tap py-3 sm:py-4 rounded-2xl bg-amber-950/80 border-2 border-amber-500/60 text-amber-300 font-orbitron font-bold text-sm sm:text-base hover:bg-amber-900/80 active:scale-95 transition shadow-lg flex flex-col items-center justify-center">
+                        <span class="text-xs font-sans text-amber-400 opacity-80">Kelingking [K]</span>
+                        <span class="text-lg">LORONG 4</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 3: END GAME ANALYTICS & RECAP -->
+        <div id="screen-result" class="hidden w-full max-w-4xl bg-slate-900/90 border border-slate-800 rounded-3xl p-6 md:p-8 backdrop-blur shadow-2xl my-auto text-center relative">
+            <div class="inline-block px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-semibold mb-3 uppercase tracking-wide">
+                <i class="fa-solid fa-trophy mr-2"></i>Selesai & Analisis Penguasaan
+            </div>
+
+            <h2 class="text-3xl md:text-4xl font-black font-orbitron mb-2 bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-emerald-400 to-cyan-400">
+                PAPAN SKOR HERO IMBUHAN
+            </h2>
+            <p class="text-slate-400 text-xs sm:text-sm mb-6">Analisis tahap pemahaman Imbuhan Tatabahasa anda</p>
+
+            <!-- Key Score Summary -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Jumlah Skor</span>
+                    <span id="res-score" class="font-orbitron text-2xl md:text-3xl font-extrabold text-cyan-400">0</span>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Ketepatan Ritma</span>
+                    <span id="res-accuracy" class="font-orbitron text-2xl md:text-3xl font-extrabold text-emerald-400">0%</span>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Kombo Maksimum</span>
+                    <span id="res-combo" class="font-orbitron text-2xl md:text-3xl font-extrabold text-yellow-400">0x</span>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Gred Pencapaian</span>
+                    <span id="res-grade" class="font-orbitron text-2xl md:text-3xl font-extrabold text-purple-400">S</span>
+                </div>
+            </div>
+
+            <!-- Imbuhan Mastery Breakdown Section -->
+            <div class="text-left bg-slate-950/60 border border-slate-800 rounded-2xl p-5 mb-8">
+                <h3 class="font-orbitron font-bold text-sm text-slate-200 mb-4 flex items-center">
+                    <i class="fa-solid fa-chart-pie text-cyan-400 mr-2"></i>ANALISIS PENGUASAAN IMBUHAN
+                </h3>
+
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-cyan-400">Imbuhan Awalan (me-, ber-, di-, pe-, ter-)</span>
+                            <span id="bar-awalan-text" class="text-slate-300">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                            <div id="bar-awalan" class="bg-cyan-500 h-full w-0 transition-all duration-500"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-purple-400">Imbuhan Akhiran (-kan, -an, -i)</span>
+                            <span id="bar-akhiran-text" class="text-slate-300">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                            <div id="bar-akhiran" class="bg-purple-500 h-full w-0 transition-all duration-500"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations / Tips Box -->
+                <div class="mt-5 p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs leading-relaxed text-slate-300">
+                    <span class="font-bold text-yellow-400 block mb-1">💡 Ulasan & Ulang Kaji Tatabahasa:</span>
+                    <p id="res-advice">
+                        Tahniah! Teruskan latihan untuk memantapkan imbuhan awalan me- (mem-, men-, meng-) berdasarkan huruf awal kata dasar!
+                    </p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button id="btn-restart" class="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-orbitron font-bold hover:brightness-110 transition shadow-lg">
+                    <i class="fa-solid fa-rotate-right mr-2"></i>MAIN SEMULA
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- INSTRUCTIONS MODAL -->
+    <div id="modal-help" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-xl w-full text-slate-200 relative">
+            <button id="btn-close-help" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg p-2">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="font-orbitron font-bold text-lg text-cyan-400 mb-3 flex items-center">
+                <i class="fa-solid fa-gamepad mr-2"></i>Cara Bermain Rhythm Hero
+            </h3>
+            <ol class="list-decimal list-inside space-y-2.5 text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+                <li>Lihat <strong>Kata Dasar</strong> dan binaan kata sasaran di bahagian atas skrin.</li>
+                <li>Nota-nota imbuhan akan turun melepasi 4 Lorong Ritma.</li>
+                <li>Lakukan <strong>Ketukan Jari (Pinch / Finger Tap)</strong> di hadapan kamera webcam atau tekan kekunci <strong>D, F, J, K</strong> apabila nota yang <strong>BETUL</strong> melintasi Garisan Sasaran di bahagian bawah.</li>
+                <li>Mengetuk imbuhan yang tepat menambah skor & kombo. Mengetuk imbuhan salah akan memotong skor & memutuskan kombo.</li>
+            </ol>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-400">
+                <span class="text-cyan-400 font-bold">Nota Kamera:</span> Pastikan tangan berada di ruang kamera yang terang. MediaPipe Hands mengesan sentuhan ibu jari dengan 4 jari tangan!
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="w-full bg-slate-950 border-t border-slate-900 py-3 text-center text-xs text-slate-500">
+        Rhythm Hero Imbuhan Tatabahasa BM &copy; 2026 | Dikuasakan oleh MediaPipe Hands AI & Web Audio API
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC ENGINE -->
+    <script>
+        /* ===================================================================
+         * 1. DATABASE SOALAN IMBUHAN TATABAHASA
+         * =================================================================== */
+        const QUESTION_DATABASE = [
+            { id: 1, kataDasar: "BACA", jenis: "Awalan (Kata Kerja Aktif)", sasaran: "MEMBACA", jawapan: "mem-", options: ["ber-", "mem-", "di-", "ter-"], lanes: [0, 1, 2, 3] },
+            { id: 2, kataDasar: "MAKAN", jenis: "Akhiran (Kata Nama)", sasaran: "MAKANAN", jawapan: "-an", options: ["-kan", "pe-", "-an", "-i"], lanes: [0, 1, 2, 3] },
+            { id: 3, kataDasar: "LARI", jenis: "Awalan (Kata Kerja)", sasaran: "BERLARI", jawapan: "ber-", options: ["ber-", "me-", "pen-", "-kan"], lanes: [0, 1, 2, 3] },
+            { id: 4, kataDasar: "TULIS", jenis: "Awalan (Kata Kerja)", sasaran: "MENULIS", jawapan: "men-", options: ["mem-", "men-", "di-", "ter-"], lanes: [0, 1, 2, 3] },
+            { id: 5, kataDasar: "LUKIS", jenis: "Awalan (Kata Nama Pelaku)", sasaran: "PELUKIS", jawapan: "pe-", options: ["pem-", "pen-", "pe-", "per-"], lanes: [0, 1, 2, 3] },
+            { id: 6, kataDasar: "SAPU", jenis: "Awalan (Kata Nama Alat)", sasaran: "PENYAPU", jawapan: "peny-", options: ["pem-", "peny-", "pem-", "peng-"], lanes: [0, 1, 2, 3] },
+            { id: 7, kataDasar: "LEMPAR", jenis: "Akhiran (Kata Kerja Transitif)", sasaran: "LEMPARKAN", jawapan: "-kan", options: ["-i", "-an", "-kan", "me-"], lanes: [0, 1, 2, 3] },
+            { id: 8, kataDasar: "HORMAT", jenis: "Akhiran (Kata Kerja Pasif/Transitif)", sasaran: "HORMATI", jawapan: "-i", options: ["-an", "-i", "-kan", "ber-"], lanes: [0, 1, 2, 3] },
+            { id: 9, kataDasar: "NYANYI", jenis: "Awalan (Kata Kerja)", sasaran: "MENYANYI", jawapan: "meny-", options: ["men-", "mem-", "meny-", "meng-"], lanes: [0, 1, 2, 3] },
+            { id: 10, kataDasar: "GUNTING", jenis: "Awalan (Kata Kerja Transitif)", sasaran: "MENGGUNTING", jawapan: "meng-", options: ["men-", "meng-", "mem-", "pe-"], lanes: [0, 1, 2, 3] }
+        ];
+
+        /* ===================================================================
+         * 2. GLOBAL GAME STATE & CONSTANTS
+         * =================================================================== */
+        const GameState = {
+            MENU: 'MENU',
+            PLAYING: 'PLAYING',
+            RESULT: 'RESULT'
+        };
+
+        let currentState = GameState.MENU;
+        let score = 0;
+        let combo = 0;
+        let maxCombo = 0;
+        let health = 100;
+        let totalHits = 0;
+        let perfectHits = 0;
+        let totalNotesSpawned = 0;
+        let currentQuestionIdx = 0;
+        let gameQuestions = [];
+        let noteSpeedMultiplier = 1.2;
+
+        // Topic Analysis Trackers
+        let masteryTracker = {
+            awalanTotal: 0,
+            awalanCorrect: 0,
+            akhiranTotal: 0,
+            akhiranCorrect: 0
+        };
+
+        /* Rhythm Lane & Canvas Mechanics */
+        const LANE_COLORS = ['#06b6d4', '#a855f7', '#ec4899', '#f59e0b']; // Cyan, Purple, Pink, Amber
+        const LANE_KEYS = ['d', 'f', 'j', 'k'];
+        let activeNotes = [];
+        let animationFrameId = null;
+        let lastTimestamp = 0;
+        let spawnTimer = 0;
+
+        /* ===================================================================
+         * 3. SYNTHESIZED WEB AUDIO API SYSTEM
+         * =================================================================== */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.isMuted = false;
+                this.bgmTimer = null;
+                this.beatCount = 0;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(freq, type = 'sine', duration = 0.15, vol = 0.3) {
+                if (this.isMuted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+
+            playHitSound(perfect = true) {
+                if (perfect) {
+                    this.playTone(523.25, 'triangle', 0.1, 0.4); // C5
+                    setTimeout(() => this.playTone(659.25, 'triangle', 0.15, 0.4), 60); // E5
+                } else {
+                    this.playTone(440, 'sine', 0.1, 0.3); // A4
+                }
+            }
+
+            playMissSound() {
+                if (this.isMuted || !this.ctx) return;
+                this.playTone(150, 'sawtooth', 0.25, 0.4);
+            }
+
+            startBGM() {
+                this.stopBGM();
+                if (this.isMuted) return;
+                this.init();
+                
+                // Simple upbeat synth rhythm beat @ ~110 BPM
+                const beatInterval = (60 / 110) * 1000 / 2; // 8th notes
+                this.bgmTimer = setInterval(() => {
+                    if (currentState !== GameState.PLAYING) return;
+                    
+                    // Drums pattern
+                    if (this.beatCount % 4 === 0) {
+                        // Kick drum
+                        this.playTone(80, 'sine', 0.1, 0.4);
+                    } else if (this.beatCount % 4 === 2) {
+                        // Snare drum
+                        this.playTone(220, 'triangle', 0.08, 0.2);
+                    }
+                    // Hi-hat synthesizer
+                    if (this.beatCount % 2 === 1) {
+                        this.playTone(800, 'square', 0.03, 0.05);
+                    }
+
+                    this.beatCount++;
+                }, beatInterval);
+            }
+
+            stopBGM() {
+                if (this.bgmTimer) {
+                    clearInterval(this.bgmTimer);
+                    this.bgmTimer = null;
+                }
+            }
+        }
+
+        const soundSynth = new SoundEngine();
+
+        /* ===================================================================
+         * 4. MEDIAPIPE HANDS VISION SYSTEM
+         * =================================================================== */
+        let handsModel = null;
+        let cameraUtils = null;
+        let lastPinchStates = [false, false, false, false];
+
+        function initMediaPipe() {
+            const videoElement = document.getElementById('webcam-video');
+            const canvasElement = document.getElementById('hand-canvas');
+            const canvasCtx = canvasElement.getContext('2d');
+            const statusText = document.getElementById('cam-status-text');
+
+            handsModel = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            handsModel.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            handsModel.onResults((results) => {
+                // Clear hand canvas
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const landmarks = results.multiHandLandmarks[0];
+
+                    // Draw landmarks
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#06b6d4', lineWidth: 2 });
+                    drawLandmarks(canvasCtx, landmarks, { color: '#ec4899', lineWidth: 1, radius: 3 });
+
+                    // Finger Pinch Gesture Detection
+                    // Compare Thumb Tip (4) with Index (8), Middle (12), Ring (16), Pinky (20)
+                    const thumbTip = landmarks[4];
+                    const fingerTips = [landmarks[8], landmarks[12], landmarks[16], landmarks[20]];
+
+                    fingerTips.forEach((tip, laneIdx) => {
+                        const dist = Math.hypot(thumbTip.x - tip.x, thumbTip.y - tip.y, thumbTip.z - tip.z);
+                        const isPinched = dist < 0.075; // Pinch distance threshold
+
+                        // Highlight finger tips on Pip canvas
+                        canvasCtx.beginPath();
+                        canvasCtx.arc(tip.x * canvasElement.width, tip.y * canvasElement.height, isPinched ? 8 : 4, 0, 2 * Math.PI);
+                        canvasCtx.fillStyle = isPinched ? '#f59e0b' : LANE_COLORS[laneIdx];
+                        canvasCtx.fill();
+
+                        // Detect trigger tap on transition (False -> True)
+                        if (isPinched && !lastPinchStates[laneIdx]) {
+                            handleLaneTap(laneIdx);
+                        }
+                        lastPinchStates[laneIdx] = isPinched;
+                    });
+                }
+                canvasCtx.restore();
+            });
+
+            // Start Webcam Camera Feed
+            cameraUtils = new Camera(videoElement, {
+                onFrame: async () => {
+                    await handsModel.send({ image: videoElement });
+                },
+                width: 320,
+                height: 240
+            });
+
+            cameraUtils.start()
+                .then(() => {
+                    statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 mr-2"></span>Kamera AI MediaPipe Bersedia!`;
+                })
+                .catch(err => {
+                    console.warn("Kamera tidak dijumpai atau akses ditolak. Mod Papan Kekunci diaktifkan.", err);
+                    statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-yellow-400 mr-2"></span>Mod Papan Kekunci / Sentuhan Aktif (Kamera Luar Talian)`;
+                });
+        }
+
+        /* ===================================================================
+         * 5. RHYTHM GAME LOGIC & CANVAS ENGINE
+         * =================================================================== */
+        const rhythmCanvas = document.getElementById('rhythm-canvas');
+        const rCtx = rhythmCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = rhythmCanvas.getBoundingClientRect();
+            rhythmCanvas.width = rect.width;
+            rhythmCanvas.height = rect.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function startNewGame() {
+            const topic = document.getElementById('select-topic').value;
+            noteSpeedMultiplier = parseFloat(document.getElementById('select-speed').value);
+
+            // Filter questions by selected topic
+            if (topic === 'AWALAN') {
+                gameQuestions = QUESTION_DATABASE.filter(q => q.jenis.includes('Awalan'));
+            } else if (topic === 'AKHIRAN') {
+                gameQuestions = QUESTION_DATABASE.filter(q => q.jenis.includes('Akhiran'));
+            } else {
+                gameQuestions = [...QUESTION_DATABASE];
+            }
+            
+            // Shuffle questions
+            gameQuestions.sort(() => Math.random() - 0.5);
+
+            // Reset Game Stats
+            score = 0;
+            combo = 0;
+            maxCombo = 0;
+            health = 100;
+            totalHits = 0;
+            perfectHits = 0;
+            totalNotesSpawned = 0;
+            currentQuestionIdx = 0;
+            activeNotes = [];
+            masteryTracker = { awalanTotal: 0, awalanCorrect: 0, akhiranTotal: 0, akhiranCorrect: 0 };
+
+            updateHUD();
+
+            // Switch Screen
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('top-stats-bar').classList.remove('hidden');
+
+            resizeCanvas();
+            loadQuestion(0);
+
+            currentState = GameState.PLAYING;
+            soundSynth.startBGM();
+
+            lastTimestamp = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function loadQuestion(idx) {
+            if (idx >= gameQuestions.length) {
+                endGame();
+                return;
+            }
+            currentQuestionIdx = idx;
+            const q = gameQuestions[idx];
+
+            document.getElementById('question-index').innerText = idx + 1;
+            document.getElementById('target-type').innerText = q.jenis;
+            document.getElementById('base-word').innerText = q.kataDasar;
+
+            if (q.jenis.includes('Awalan')) {
+                document.getElementById('target-assembled-word').innerText = `[ ${q.jawapan} ] + ${q.kataDasar} = ${q.sasaran}`;
+            } else {
+                document.getElementById('target-assembled-word').innerText = `${q.kataDasar} + [ ${q.jawapan} ] = ${q.sasaran}`;
+            }
+
+            // Track category stats
+            if (q.jenis.includes('Awalan')) masteryTracker.awalanTotal++;
+            else masteryTracker.akhiranTotal++;
+
+            // Spawn set of notes for this question across lanes
+            spawnQuestionNotes(q);
+        }
+
+        function spawnQuestionNotes(question) {
+            const lanes = [0, 1, 2, 3];
+            const shuffledOptions = [...question.options].sort(() => Math.random() - 0.5);
+
+            lanes.forEach((laneIdx, i) => {
+                const noteText = shuffledOptions[i];
+                const isCorrect = (noteText === question.jawapan);
+
+                // Stagger spawn Y positions so notes flow naturally
+                const startY = -80 - (Math.random() * 140);
+
+                activeNotes.push({
+                    id: Math.random(),
+                    lane: laneIdx,
+                    text: noteText,
+                    isCorrect: isCorrect,
+                    y: startY,
+                    speed: 2.8 * noteSpeedMultiplier,
+                    hit: false,
+                    questionId: question.id
+                });
+                totalNotesSpawned++;
+            });
+        }
+
+        function gameLoop(timestamp) {
+            if (currentState !== GameState.PLAYING) return;
+
+            const dt = timestamp - lastTimestamp;
+            lastTimestamp = timestamp;
+
+            // Clear Canvas
+            rCtx.clearRect(0, 0, rhythmCanvas.width, rhythmCanvas.height);
+
+            // Draw Rhythm Lanes
+            const laneWidth = rhythmCanvas.width / 4;
+            const targetLineY = rhythmCanvas.height - 90;
+
+            for (let i = 0; i < 4; i++) {
+                // Lane dividers
+                rCtx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+                rCtx.lineWidth = 1;
+                rCtx.beginPath();
+                rCtx.moveTo(i * laneWidth, 0);
+                rCtx.lineTo(i * laneWidth, rhythmCanvas.height);
+                rCtx.stroke();
+
+                // Lane gradient overlay
+                const grad = rCtx.createLinearGradient(0, 0, 0, rhythmCanvas.height);
+                grad.addColorStop(0, 'transparent');
+                grad.addColorStop(1, LANE_COLORS[i] + '15');
+                rCtx.fillStyle = grad;
+                rCtx.fillRect(i * laneWidth, 0, laneWidth, rhythmCanvas.height);
+            }
+
+            // Draw Target Line (Hit Zone)
+            rCtx.strokeStyle = '#38bdf8';
+            rCtx.lineWidth = 4;
+            rCtx.shadowColor = '#06b6d4';
+            rCtx.shadowBlur = 12;
+            rCtx.beginPath();
+            rCtx.moveTo(0, targetLineY);
+            rCtx.lineTo(rhythmCanvas.width, targetLineY);
+            rCtx.stroke();
+            rCtx.shadowBlur = 0; // Reset shadow
+
+            // Target Rings on Target Line
+            for (let i = 0; i < 4; i++) {
+                const cx = i * laneWidth + laneWidth / 2;
+                rCtx.beginPath();
+                rCtx.arc(cx, targetLineY, 28, 0, Math.PI * 2);
+                rCtx.strokeStyle = LANE_COLORS[i];
+                rCtx.lineWidth = 3;
+                rCtx.stroke();
+            }
+
+            // Update & Render Notes
+            for (let i = activeNotes.length - 1; i >= 0; i--) {
+                const note = activeNotes[i];
+                note.y += note.speed;
+
+                const noteX = note.lane * laneWidth + laneWidth / 2;
+
+                // Render Note Card
+                rCtx.save();
+                rCtx.fillStyle = note.isCorrect ? '#0f172a' : '#1e1028';
+                rCtx.strokeStyle = LANE_COLORS[note.lane];
+                rCtx.lineWidth = 3;
+                rCtx.shadowColor = LANE_COLORS[note.lane];
+                rCtx.shadowBlur = 10;
+
+                // Card rect
+                const cardW = Math.min(laneWidth - 20, 110);
+                const cardH = 50;
+                const rx = noteX - cardW / 2;
+                const ry = note.y - cardH / 2;
+
+                rCtx.beginPath();
+                rCtx.roundRect(rx, ry, cardW, cardH, 12);
+                rCtx.fill();
+                rCtx.stroke();
+
+                // Note Text (Imbuhan)
+                rCtx.shadowBlur = 0;
+                rCtx.fillStyle = '#ffffff';
+                rCtx.font = 'bold 18px "Orbitron", sans-serif';
+                rCtx.textAlign = 'center';
+                rCtx.textBaseline = 'middle';
+                rCtx.fillText(note.text, noteX, note.y);
+                rCtx.restore();
+
+                // Check Miss Condition (Passed line without tap)
+                if (note.y > targetLineY + 60 && !note.hit) {
+                    note.hit = true;
+                    if (note.isCorrect) {
+                        handleMiss();
+                    }
+                    // Remove off-screen note
+                    activeNotes.splice(i, 1);
+
+                    // Check if current question's notes cleared
+                    checkQuestionCompletion();
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ===================================================================
+         * 6. USER INPUT & LANE TAP HANDLING
+         * =================================================================== */
+        function handleLaneTap(laneIdx) {
+            if (currentState !== GameState.PLAYING) return;
+
+            // Visual lane press highlight
+            const laneButtons = document.querySelectorAll('.btn-lane-tap');
+            if (laneButtons[laneIdx]) {
+                laneButtons[laneIdx].classList.add('lane-active');
+                setTimeout(() => laneButtons[laneIdx].classList.remove('lane-active'), 150);
+            }
+
+            const targetLineY = rhythmCanvas.height - 90;
+            const hitTolerance = 65; // Pixel hit zone tolerance
+
+            // Find closest note in this lane
+            let closestNote = null;
+            let minDistance = Infinity;
+
+            activeNotes.forEach(note => {
+                if (note.lane === laneIdx && !note.hit) {
+                    const dist = Math.abs(note.y - targetLineY);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closestNote = note;
+                    }
+                }
+            });
+
+            if (closestNote && minDistance <= hitTolerance) {
+                closestNote.hit = true;
+
+                if (closestNote.isCorrect) {
+                    // CORRECT IMBUHAN HIT!
+                    const isPerfect = minDistance <= 30;
+                    const points = isPerfect ? 500 : 300;
+
+                    score += points * (1 + Math.floor(combo / 5) * 0.2);
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
+                    totalHits++;
+                    if (isPerfect) perfectHits++;
+
+                    // Category Tracker
+                    const currentQ = gameQuestions[currentQuestionIdx];
+                    if (currentQ.jenis.includes('Awalan')) masteryTracker.awalanCorrect++;
+                    else masteryTracker.akhiranCorrect++;
+
+                    soundSynth.playHitSound(isPerfect);
+                    showFeedback(isPerfect ? 'PERFECT!' : 'GREAT!', isPerfect ? '#06b6d4' : '#10b981', `+${points} Pts`);
+                } else {
+                    // WRONG IMBUHAN TAP!
+                    combo = 0;
+                    score = Math.max(0, score - 100);
+                    health = Math.max(0, health - 10);
+                    soundSynth.playMissSound();
+                    showFeedback('SALAH IMBUHAN!', '#ef4444', '-100 Pts');
+                }
+
+                // Remove hit note from canvas array
+                const index = activeNotes.indexOf(closestNote);
+                if (index > -1) activeNotes.splice(index, 1);
+
+                updateHUD();
+                checkQuestionCompletion();
+            }
+        }
+
+        function handleMiss() {
+            combo = 0;
+            health = Math.max(0, health - 8);
+            soundSynth.playMissSound();
+            showFeedback('MISS!', '#f59e0b', 'Terlepas Imbuhan!');
+            updateHUD();
+        }
+
+        function checkQuestionCompletion() {
+            // If all notes for the current question are gone, proceed to next question
+            if (activeNotes.length === 0) {
+                setTimeout(() => {
+                    if (currentState === GameState.PLAYING) {
+                        loadQuestion(currentQuestionIdx + 1);
+                    }
+                }, 400);
+            }
+        }
+
+        function showFeedback(title, colorHex, subtext) {
+            const popup = document.getElementById('feedback-popup');
+            const textEl = document.getElementById('feedback-text');
+            const subEl = document.getElementById('feedback-sub');
+
+            textEl.innerText = title;
+            textEl.style.color = colorHex;
+            subEl.innerText = subtext;
+
+            popup.classList.remove('opacity-0');
+            popup.classList.add('scale-110');
+
+            setTimeout(() => {
+                popup.classList.add('opacity-0');
+                popup.classList.remove('scale-110');
+            }, 450);
+        }
+
+        function updateHUD() {
+            document.getElementById('score-display').innerText = Math.round(score).toString().padStart(6, '0');
+            document.getElementById('combo-display').innerText = `${combo}x`;
+            document.getElementById('health-bar').style.width = `${health}%`;
+
+            if (health <= 0) {
+                endGame();
+            }
+        }
+
+        /* ===================================================================
+         * 7. ANALYTICS & END GAME SUMMARY
+         * =================================================================== */
+        function endGame() {
+            currentState = GameState.RESULT;
+            soundSynth.stopBGM();
+
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('top-stats-bar').classList.add('hidden');
+            document.getElementById('screen-result').classList.remove('hidden');
+
+            // Calculate Metrics
+            const accuracy = totalHits > 0 ? Math.round((perfectHits / totalHits) * 100) : 0;
+            const awalanPct = masteryTracker.awalanTotal > 0 ? Math.round((masteryTracker.awalanCorrect / masteryTracker.awalanTotal) * 100) : 100;
+            const akhiranPct = masteryTracker.akhiranTotal > 0 ? Math.round((masteryTracker.akhiranCorrect / masteryTracker.akhiranTotal) * 100) : 100;
+
+            let grade = 'C';
+            if (score >= 4000) grade = 'S+';
+            else if (score >= 3000) grade = 'A';
+            else if (score >= 2000) grade = 'B';
+
+            // DOM Updates
+            document.getElementById('res-score').innerText = Math.round(score);
+            document.getElementById('res-accuracy').innerText = `${accuracy}%`;
+            document.getElementById('res-combo').innerText = `${maxCombo}x`;
+            document.getElementById('res-grade').innerText = grade;
+
+            // Mastery Progress Bars
+            document.getElementById('bar-awalan-text').innerText = `${awalanPct}%`;
+            document.getElementById('bar-awalan').style.width = `${awalanPct}%`;
+
+            document.getElementById('bar-akhiran-text').innerText = `${akhiranPct}%`;
+            document.getElementById('bar-akhiran').style.width = `${akhiranPct}%`;
+
+            // Custom Recommendations / Tips based on performance
+            const adviceEl = document.getElementById('res-advice');
+            if (awalanPct < 70) {
+                adviceEl.innerHTML = `<strong class="text-cyan-400">Petua Awalan BM:</strong> Penggunaan imbuhan Awalan <i>me-</i> berubah mengikut huruf pertama kata dasar (Contoh: <b>b</b>aca &rarr; <b>mem</b>baca, <b>t</b>ulis &rarr; <b>men</b>ulis, <b>g</b>unting &rarr; <b>meng</b>gunting).`;
+            } else if (akhiranPct < 70) {
+                adviceEl.innerHTML = `<strong class="text-purple-400">Petua Akhiran BM:</strong> Imbuhan akhiran <i>-kan</i> membentuk kata kerja transitif (Contoh: lempar &rarr; lemparkan), manakala <i>-an</i> membentuk kata nama (Contoh: makan &rarr; makanan).`;
+            } else {
+                adviceEl.innerHTML = `<strong>Tahniah Hero Imbuhan!</strong> Penguasaan Imbuhan Awalan dan Akhiran anda amat cemerlang. Anda bersedia untuk tahap tatabahasa yang lebih tinggi!`;
+            }
+        }
+
+        /* ===================================================================
+         * 8. EVENT LISTENERS & INITIALIZATION
+         * =================================================================== */
+        document.addEventListener('DOMContentLoaded', () => {
+            initMediaPipe();
+
+            // Start Game Button
+            document.getElementById('btn-start-game').addEventListener('click', () => {
+                soundSynth.init();
+                startNewGame();
+            });
+
+            // Restart Button
+            document.getElementById('btn-restart').addEventListener('click', () => {
+                startNewGame();
+            });
+
+            // On-screen Lane Touch/Click Event Listeners
+            document.querySelectorAll('.btn-lane-tap').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const laneIdx = parseInt(e.currentTarget.getAttribute('data-lane'));
+                    handleLaneTap(laneIdx);
+                });
+            });
+
+            // Keyboard Shortcuts (D, F, J, K)
+            window.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                const keyIdx = LANE_KEYS.indexOf(key);
+                if (keyIdx !== -1) {
+                    handleLaneTap(keyIdx);
+                }
+            });
+
+            // Audio Toggle Button
+            document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+                soundSynth.isMuted = !soundSynth.isMuted;
+                const icon = document.getElementById('sound-icon');
+                if (soundSynth.isMuted) {
+                    icon.className = 'fa-solid fa-volume-xmark text-red-400';
+                    soundSynth.stopBGM();
+                } else {
+                    icon.className = 'fa-solid fa-volume-high text-emerald-400';
+                    if (currentState === GameState.PLAYING) soundSynth.startBGM();
+                }
+            });
+
+            // Instructions Modal Toggles
+            document.getElementById('btn-help').addEventListener('click', () => {
+                document.getElementById('modal-help').classList.remove('hidden');
+            });
+            document.getElementById('btn-close-help').addEventListener('click', () => {
+                document.getElementById('modal-help').classList.add('hidden');
+            });
+        });
+    </script>
+</body>
+</html>
